@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Insert title here</title>
+</head>
+<body>
+	<form action=upload.do id="upload_form" target="upload_iframe"
+		enctype="multipart/form-data" method="post">
+		<input type="file" name="uploadFile" id="uploadFile"
+			style="width: 300px;" />
+	</form>
+	<iframe name="upload_iframe" src="javascript:void(0);"
+		style="display: none;"></iframe>
+	<button id="test_btn" class="btn btn-upload" type="button">
+		<i class="icon-upload bigger-110"></i> 导入
+	</button>
+	<button id="down_btn" class="btn btn-download" type="button">
+		<i class="icon-upload bigger-110"></i> 导出
+	</button>
+</body>
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript">
+	$(function(){
+		$('#test_btn').click(function(){
+			$('#upload_form').submit();
+		})
+		
+		$('#down_btn').click(function(){
+			window.open("download.do","_blank");
+		})
+	})
+</script>
+</html>

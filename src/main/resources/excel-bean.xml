@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<excels>
+	<excel class="com.gsafety.entity.User">
+		<column>
+			<columnName>姓名</columnName>
+			<fieldName>name</fieldName>
+		</column>
+		<column>
+			<columnName>年龄</columnName>
+			<fieldName>age</fieldName>
+		</column>
+	</excel>
+</excels> 
