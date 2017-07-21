@@ -3,7 +3,6 @@ package com.gsafety.util;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -16,7 +15,6 @@ import java.util.Map.Entry;
 
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
@@ -80,17 +78,15 @@ public class ExcelUtils {
 					Cell cell = row.getCell(index);
 					ExcelColum e = (ExcelColum) entry.getValue();
 					String fieldName = e.getFieldName();
-					Field[] fields = obj.getClass().getDeclaredFields();
-					for (Field field : fields) {
-						field.setAccessible(true);
-						if( field.getName().equals(fieldName) ){
-							Class typeClazz = field.getType();
-							/*获取单元格的值*/
-							Object value = getValueByTypeAndCell(cell, typeClazz);
-							/*为对象赋值*/
-							setFieldValue(obj, field, value);
-						}
+					/*获取单元格的值*/
+					Object value = null;
+					try {
+						value = getValueByTypeAndCell(cell, clazz.getDeclaredField(fieldName).getType());
+					} catch (NoSuchFieldException | SecurityException e1) {
+						e1.printStackTrace();
 					}
+					/*为对象赋值*/
+					setFieldValue(obj, fieldName, value);
 				}
 			}
 			resultList.add(obj);
@@ -100,54 +96,56 @@ public class ExcelUtils {
 	
 	/**
 	 * List2Excel并输出
+	 * @param <T>
 	 * @param list 实体对象集合
 	 * @param clazz 
 	 * @param response
 	 */
-	public static void list2Excel(List list, String fileName, HttpServletResponse response){
-		Class clazz = list.get(0).getClass();
+	public static <T> void list2Excel(List<T> list, String fileName, HttpServletResponse response){
 		Workbook wb = new XSSFWorkbook();
 		Sheet sheet = wb.createSheet("Sheet1");
-		Row titleRow = sheet.createRow(0);
-		/*设置标题居中*/
-		CellStyle titleCellStyle = wb.createCellStyle();
-		titleCellStyle.setAlignment(XSSFCellStyle.ALIGN_CENTER);
-		/*设置标题加粗*/
-		Font titleCellStyleFont = wb.createFont();
-		titleCellStyleFont.setBold(true);
-		titleCellStyle.setFont( titleCellStyleFont );
-		/*解析excel-bean获取map*/
-		Map<String, Object> map = ExcelUtils.dom2Map(clazz);
-		/*循环生成标题行*/
-		for (Entry<String, Object>  entry : map.entrySet() ) {
-			if( StringUtils.isNumeric(entry.getKey()) ){
-				Cell titleCell = titleRow.createCell(Integer.valueOf(entry.getKey()));
-				titleCell.setCellValue(((ExcelColum)entry.getValue()).getColumnName());
-				titleCell.setCellStyle(titleCellStyle);
-			}
-		}
-		/*通过list循环生成每行数据*/
-		for (int i = 0; i < list.size(); i++) {
-			Row row = sheet.createRow(i+1);
-			/*通过map循环生成行内每个单元格*/
+		/*如果list为空则返回空excel文件*/
+		if( !list.isEmpty() ){
+			Class clazz = list.get(0).getClass();
+			Row titleRow = sheet.createRow(0);
+			/*设置标题居中*/
+			CellStyle titleCellStyle = wb.createCellStyle();
+			titleCellStyle.setAlignment(XSSFCellStyle.ALIGN_CENTER);
+			/*设置标题加粗*/
+			Font titleCellStyleFont = wb.createFont();
+			titleCellStyleFont.setBold(true);
+			titleCellStyle.setFont( titleCellStyleFont );
+			/*解析excel-bean获取map*/
+			Map<String, Object> map = ExcelUtils.dom2Map(clazz);
+			/*循环生成标题行*/
 			for (Entry<String, Object>  entry : map.entrySet() ) {
-				if( StringUtils.isNumeric(entry.getKey()) ){
+				int columIndex = Integer.valueOf(entry.getKey());
+				Cell titleCell = titleRow.createCell( columIndex );
+				String columName = ((ExcelColum)entry.getValue()).getColumnName();
+				titleCell.setCellValue( columName );
+				titleCell.setCellStyle( titleCellStyle );
+				/*设置标题列宽度*/
+				int colWidth = columName.length()*1024 ;
+				sheet.setColumnWidth( columIndex, colWidth );
+			}
+			/*通过list循环生成每行数据*/
+			for (int i = 0; i < list.size(); i++) {
+				Row row = sheet.createRow(i+1);
+				/*通过map循环生成行内每个单元格*/
+				for (Entry<String, Object>  entry : map.entrySet() ) {
 					/*获得实体类的字段名*/
 					String fieldName = ((ExcelColum)entry.getValue()).getFieldName();
-					Field[] fields = clazz.getDeclaredFields();
-					for (Field field : fields) {
-						field.setAccessible(true);
-						if( field.getName().equals(fieldName) ){
-							/*获取字段对应的值*/
-							String value = String.valueOf(getFieldValueByName(fieldName, list.get(i)));
-							/*如果是Date类型，截取掉毫秒位*/
-							if( Date.class == field.getType() ){
-								value = value.indexOf(".")!=-1 ? value.substring(0, value.lastIndexOf(".")) : value;	
-							}
-							/*创建行内待单元格，并赋值*/
-							row.createCell(Integer.valueOf(entry.getKey())).setCellValue(value);
+					String value = String.valueOf(getFieldValueByName(fieldName, list.get(i)));
+					/*如果是Date类型，截取掉毫秒位*/
+					try {
+						if( Date.class == clazz.getDeclaredField(fieldName).getType() ){
+							value = value.indexOf(".")!=-1 ? value.substring(0, value.lastIndexOf(".")) : value;	
 						}
+					} catch (NoSuchFieldException | SecurityException e) {
+						e.printStackTrace();
 					}
+					/*创建行内待单元格，并赋值*/
+					row.createCell(Integer.valueOf(entry.getKey())).setCellValue(value);
 				}
 			}
 		}
@@ -156,9 +154,11 @@ public class ExcelUtils {
 		response.reset();
 		try {
 			output = response.getOutputStream();
-			/*设置文件名，例如：学生表20170717.xlsx*/
+			/*设置响应编码*/
+			response.setCharacterEncoding("utf-8");  
+			/*设置文件名*/
 			response.setHeader("Content-disposition", "attachment; filename="
-					+new String(fileName.getBytes(), "ISO-8859-1")+new SimpleDateFormat("yyyyMMdd").format(new Date())+".xlsx");
+					+new String(fileName.getBytes("gbk"), "ISO-8859-1")+new SimpleDateFormat("yyyyMMddHHmmss").format(new Date())+".xlsx");
 			/*设置文件类型*/
 			response.setContentType("application/msexcel");
 			/*写入到输出流*/
@@ -186,7 +186,7 @@ public class ExcelUtils {
         Document document;
         Element root = null;
 		try {
-			document = reader.read(new ClassPathResource("excel-bean.xml").getFile());
+			document = reader.read(new ClassPathResource("excelBean/excel-bean.xml").getFile());
 			root = document.getRootElement();
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -258,9 +258,8 @@ public class ExcelUtils {
 	 * @return 属性值
 	 */
 	private static Object getFieldValueByName(String fieldName, Object targetObj) {  
+		String methodName = "get" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
 		try {
-			String firstLetter = fieldName.substring(0, 1).toUpperCase();
-			String methodName = "get" + firstLetter + fieldName.substring(1);
 			Method method = targetObj.getClass().getDeclaredMethod(methodName);
 			Object value = method.invoke(targetObj);
 			return value;
@@ -276,12 +275,10 @@ public class ExcelUtils {
 	 * @param field 字段
 	 * @param value 值
 	 */
-	private static void setFieldValue(Object targetObj, Field field, Object value){
-		String fieldName = field.getName();
+	private static void setFieldValue(Object targetObj, String fieldName, Object value){
 		String methodName = "set" + fieldName.substring(0, 1).toUpperCase() + fieldName.substring(1);
-		Class typeClazz = field.getType();
 		try {
-			Method method = targetObj.getClass().getDeclaredMethod(methodName, typeClazz);
+			Method method = targetObj.getClass().getDeclaredMethod(methodName);
 			method.invoke(targetObj, value);
 		} catch (Exception e) {
 			e.printStackTrace();
