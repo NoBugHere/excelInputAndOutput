@@ -101,10 +101,9 @@ public class ExcelUtils {
 	 * @param clazz 
 	 * @param response
 	 */
-	public static <T> void list2Excel(List<T> list, String fileName, HttpServletResponse response){
+	public static void list2Excel(List list, String fileName, HttpServletResponse response){
 		Workbook wb = new XSSFWorkbook();
 		Sheet sheet = wb.createSheet("Sheet1");
-		/*如果list为空则返回空excel文件*/
 		if( !list.isEmpty() ){
 			Class clazz = list.get(0).getClass();
 			Row titleRow = sheet.createRow(0);
@@ -135,7 +134,7 @@ public class ExcelUtils {
 				for (Entry<String, Object>  entry : map.entrySet() ) {
 					/*获得实体类的字段名*/
 					String fieldName = ((ExcelColum)entry.getValue()).getFieldName();
-					String value = String.valueOf(getFieldValueByName(fieldName, list.get(i)));
+					String value =null==getFieldValueByName(fieldName, list.get(i))?"":String.valueOf(getFieldValueByName(fieldName, list.get(i)));
 					/*如果是Date类型，截取掉毫秒位*/
 					try {
 						if( Date.class == clazz.getDeclaredField(fieldName).getType() ){
